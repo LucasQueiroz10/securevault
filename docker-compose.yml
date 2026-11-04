@@ -1,0 +1,58 @@
+name: securevault
+
+# Configuração comum a quem roda a imagem da API (a própria API e as migrações).
+x-api: &api
+  # API_IMAGE permite trocar a versão sem editar este arquivo.
+  image: ${API_IMAGE:-securevault-api:local}
+  build: ./backend
+  environment:
+    # O :? faz o Compose parar com erro se a variável não estiver definida.
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?defina no .env}:${POSTGRES_PASSWORD:?defina no .env}@db:5432/${POSTGRES_DB:?defina no .env}
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      POSTGRES_DB: ${POSTGRES_DB:?defina no .env}
+    # Volume nomeado: os dados sobrevivem quando o contêiner é recriado.
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # Sem "ports" de propósito: só os serviços desta rede alcançam o banco.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # Roda uma vez e termina. A API só sobe depois que as migrações concluem.
+  migrate:
+    <<: *api
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *api
+    restart: unless-stopped
+    # 127.0.0.1: a API fica acessível só nesta máquina, não na rede local.
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db-data:

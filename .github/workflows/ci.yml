@@ -11,8 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # A aplicação exige DATABASE_URL para iniciar. Os testes trocam o banco por
-    # um SQLite em memória (conftest.py); quando o CI ganhar um PostgreSQL,
-    # este valor passa a apontar para ele.
+    # um SQLite em memória (conftest.py); o PostgreSQL é exercitado no job docker.
     env:
       DATABASE_URL: "sqlite:///:memory:"
 
@@ -42,34 +41,29 @@ jobs:
     # Só vale gastar tempo gerando a imagem se os testes passaram.
     needs: test
 
-    defaults:
-      run:
-        working-directory: backend
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       # Versão fixada: a v2.12.0 ainda não reconhece a flag --start-interval do HEALTHCHECK.
       - name: Lint Dockerfile
-        run: docker run --rm -i hadolint/hadolint:v2.15.1 < Dockerfile
+        run: docker run --rm -i hadolint/hadolint:v2.15.1 < backend/Dockerfile
 
-      - name: Build image
-        run: docker build -t securevault-api:ci .
-
-      # Gerar a imagem não prova que ela funciona: sobe o container e espera o
-      # HEALTHCHECK aprovar.
-      - name: Smoke test
+      # O banco é descartável e morre com o runner, então os valores fictícios do
+      # modelo bastam. De quebra, isso prova que o .env.example funciona.
+      - name: Start stack
         run: |
-          docker run -d --name api -e DATABASE_URL=sqlite:////tmp/smoke.db securevault-api:ci
-          for _ in $(seq 1 30); do
-            status=$(docker inspect --format '{{.State.Health.Status}}' api)
-            if [ "$status" = "healthy" ]; then
-              echo "Container saudável"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Container não ficou saudável (último status: $status)"
-          docker logs api
-          exit 1
+          cp .env.example .env
+          docker compose up -d --build --wait --wait-timeout 120
+
+      # Falha se alguém mudou um modelo e esqueceu de criar a migração.
+      - name: Check migrations match models
+        run: docker compose run --rm --no-deps migrate alembic check
+
+      # Gerar a imagem não prova que ela funciona: testa a API gravando no banco.
+      - name: Smoke test
+        run: bash scripts/smoke-test.sh
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs

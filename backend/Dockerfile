@@ -23,6 +23,8 @@ RUN groupadd --system --gid 1000 app \
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY app ./app
+COPY alembic.ini ./
+COPY migrations ./migrations
 
 # UID numérico: o Kubernetes só consegue verificar "não é root" com o número.
 USER 1000:1000

@@ -1,0 +1,2 @@
+# Scripts rodam no Linux: com CRLF (padrão do Git no Windows), o bash falha.
+*.sh text eol=lf
