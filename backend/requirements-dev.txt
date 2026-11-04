@@ -1,0 +1,11 @@
+# Dependências só de desenvolvimento e testes. Ficam fora da imagem de produção.
+-r requirements.txt
+certifi==2026.7.22
+colorama==0.4.6; sys_platform == "win32"
+httpcore==1.0.9
+httpx==0.28.1
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0
+pytest==9.1.1
