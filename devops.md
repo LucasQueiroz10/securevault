@@ -79,3 +79,75 @@ Cada verificação cobre uma etapa diferente:
 A versão do hadolint, a ferramenta de lint, é fixada para que o resultado do pipeline não mude sozinho quando sair uma versão nova.
 
 **No projeto:** o job `docker` do [ci.yml](.github/workflows/ci.yml).
+
+## Orquestração e banco de dados
+
+### Infraestrutura como código
+
+Toda a infraestrutura necessária para rodar o projeto fica descrita em arquivos versionados, e não em passos manuais. Qualquer pessoa do grupo sobe o mesmo ambiente com um único comando, e cada mudança na infraestrutura passa por revisão e fica no histórico do Git.
+
+**No projeto:** o [docker-compose.yml](docker-compose.yml) define a API, as migrações e o PostgreSQL.
+
+### Ordem de inicialização baseada em saúde
+
+Um contêiner iniciado não é um serviço pronto: o PostgreSQL leva alguns segundos para aceitar conexões. Se a API dependesse apenas de o contêiner existir, ela poderia falhar ao tentar usar um banco ainda indisponível. Por isso, cada serviço espera uma condição real.
+
+**No projeto:** o `migrate` espera o `db` ficar saudável, e a `api` espera o `migrate` terminar com sucesso.
+
+### Migrações versionadas
+
+As alterações do banco ficam registradas em arquivos, assim como o código. Dessa forma, todo ambiente chega ao mesmo esquema pelo mesmo caminho, e cada alteração pode ser revisada.
+
+A migração roda em um serviço separado, que termina ao concluir. Assim, a API não sobe com o banco desatualizado, e um erro de migração aparece antes de a versão nova receber tráfego.
+
+Migrações geradas automaticamente precisam de revisão. Neste projeto, a revisão encontrou dois problemas: um valor padrão que só funcionava no PostgreSQL e um tipo enum que não era removido no `downgrade`, o que impediria reaplicar a migração.
+
+**No projeto:** os arquivos em [backend/migrations/versions](backend/migrations/versions).
+
+### Contêineres descartáveis, dados persistentes
+
+Contêineres devem poder ser destruídos e recriados a qualquer momento, inclusive em uma atualização de versão. Os dados ficam fora deles, em um volume com ciclo de vida próprio.
+
+**No projeto:** o volume `db-data`. O comando `docker compose down` preserva os dados, e `docker compose down -v` os apaga.
+
+### Redução da superfície de ataque
+
+Só deve ficar exposto o que precisa estar exposto, e cada camada limita o estrago caso a anterior falhe. Essa abordagem é chamada de defesa em profundidade.
+
+| Medida | O que limita |
+|---|---|
+| Banco sem porta publicada | Ninguém fora da rede do Compose alcança o PostgreSQL |
+| API publicada só em `127.0.0.1` | A rede local não alcança a API |
+| Sistema de arquivos somente leitura | Um invasor não altera o código nem grava fora de `/tmp` |
+| `cap_drop: ALL` | O processo não tem privilégios extras do Linux |
+| `no-new-privileges` | O processo não consegue obter privilégios depois de iniciar |
+
+**No projeto:** o bloco `x-api` e o serviço `db` do [docker-compose.yml](docker-compose.yml).
+
+### Modelo versionado, segredo fora do Git
+
+O `.env.example` documenta quais variáveis existem e fica no Git, apenas com valores fictícios. O `.env` real, com as senhas, nunca é versionado. Um segredo que entra no histórico do Git deve ser considerado vazado, mesmo que o commit seja apagado depois.
+
+**No projeto:** o [.env.example](.env.example) e a regra do [.gitignore](.gitignore).
+
+## Testes de integração no pipeline
+
+### Ambiente efêmero
+
+O pipeline sobe a stack inteira do zero a cada execução e a descarta no fim. Como nada sobrevive entre as execuções, um passo manual esquecido ou um resíduo de teste anterior não consegue esconder um problema.
+
+**No projeto:** o passo `Start stack` do job `docker` no [ci.yml](.github/workflows/ci.yml). Ele usa o próprio `.env.example`, o que também prova que o modelo funciona.
+
+### Detecção de divergência
+
+Divergência (*drift*) é quando duas coisas que deveriam estar iguais deixam de estar, como os modelos do código e o esquema do banco. O `alembic check` compara os dois e falha se alguém alterou um modelo sem criar a migração.
+
+**No projeto:** o passo `Check migrations match models` do [ci.yml](.github/workflows/ci.yml).
+
+### Smoke test reaproveitável
+
+O smoke test é um teste curto que confirma se o essencial funciona. Ele fica em um script, e não dentro do pipeline, para que a mesma verificação rode na máquina do desenvolvedor, no CI e depois de um deploy.
+
+Neste projeto, o script cadastra um usuário e tenta cadastrá-lo de novo. O segundo pedido precisa ser recusado, o que prova que o primeiro foi realmente gravado no banco.
+
+**No projeto:** o [scripts/smoke-test.sh](scripts/smoke-test.sh).
