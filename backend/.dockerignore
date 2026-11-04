@@ -2,6 +2,8 @@
 # arquivo novo (.env, banco local, chave) nunca entra na imagem por esquecimento.
 *
 !app/
+!alembic.ini
+!migrations/
 !requirements.txt
 
 **/__pycache__
