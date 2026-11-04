@@ -10,6 +10,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # A aplicação exige DATABASE_URL para iniciar. Os testes trocam o banco por
+    # um SQLite em memória (conftest.py); quando o CI ganhar um PostgreSQL,
+    # este valor passa a apontar para ele.
+    env:
+      DATABASE_URL: sqlite:///:memory:
+
     defaults:
       run:
         working-directory: backend

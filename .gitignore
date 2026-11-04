@@ -8,6 +8,8 @@ venv/
 # Env / secrets
 .env
 .env.*
+# exceção: o modelo, só com valores fictícios, é versionado
+!.env.example
 
 # IDE
 .vscode/
