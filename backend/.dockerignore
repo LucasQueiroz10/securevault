@@ -1,0 +1,8 @@
+# Lista de permissão: ignora tudo e libera só o que a imagem precisa. Assim um
+# arquivo novo (.env, banco local, chave) nunca entra na imagem por esquecimento.
+*
+!app/
+!requirements.txt
+
+**/__pycache__
+**/*.py[cod]
