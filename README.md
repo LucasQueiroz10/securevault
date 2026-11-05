@@ -17,7 +17,8 @@ Cofre de senhas full stack (desktop + API), desenvolvido como projeto de aprendi
 | Orquestração local | Docker Compose | Em uso |
 | Lint do Dockerfile | hadolint | Em uso |
 | CI | GitHub Actions | Em uso |
-| CD | GitHub Actions, com publicação no GitHub Container Registry (GHCR) | Publicação implementada; deploy automático pendente |
+| CD | GitHub Actions, com publicação no GitHub Container Registry (GHCR) e deploy em ambiente simulado | Em uso |
+| Segredos do pipeline | GitHub Secrets (environment `homologacao`) | Em uso |
 
 ## Estrutura do repositório
 
@@ -26,7 +27,8 @@ Cofre de senhas full stack (desktop + API), desenvolvido como projeto de aprendi
 .github/workflows/cd.yml   Pipeline de entrega: publica a imagem e cria a release
 docker-compose.yml         Sobe a API, as migrações e o PostgreSQL
 .env.example               Modelo das variáveis do Compose (só valores fictícios)
-scripts/smoke-test.sh      Verifica se a API está no ar e gravando no banco
+scripts/deploy.sh          Implanta uma versão publicada e roda o smoke test
+scripts/smoke-test.sh      Verifica a API, a versão no ar e a gravação no banco
 devops.md                  Práticas de DevOps usadas no projeto
 backend/
   app/                     Código da API (rotas, serviços, repositórios, modelos)
@@ -203,9 +205,27 @@ O pipeline roda ao enviar uma tag no formato `vX.Y.Z`:
 
 1. **`ci`:** executa o mesmo pipeline de CI dos pull requests.
 2. **`publish`:** confere se o commit da tag está na `main`, gera a imagem e a publica no GHCR.
-3. **`release`:** cria a release no GitHub, com a referência e o digest da imagem.
+3. **`deploy`:** baixa a imagem publicada pelo digest, sobe a stack no ambiente `homologacao` e executa o smoke test, conferindo a versão no ar.
+4. **`release`:** cria a release no GitHub, com a referência e o digest da imagem. Só roda se o deploy passar.
 
-A autenticação no registry usa o `GITHUB_TOKEN`, uma credencial temporária criada pelo GitHub para cada execução. Não há senha de registry armazenada no repositório, e cada job recebe apenas as permissões de que precisa.
+### Ambiente de homologação simulado
+
+O deploy roda no próprio runner do GitHub Actions: a stack sobe do zero, é verificada e é descartada ao final da execução. Por isso, ele prova que a versão publicada instala e funciona, mas não mantém um ambiente acessível depois do pipeline. O histórico de deploys fica em **Deployments**, na página do repositório.
+
+O mesmo script pode ser usado em qualquer máquina com o Docker e as variáveis `POSTGRES_*` definidas:
+
+```bash
+bash scripts/deploy.sh ghcr.io/lucasqueiroz10/securevault-api:0.1.0 0.1.0
+```
+
+### Credenciais do pipeline
+
+| Credencial | Onde fica | Quem usa |
+|---|---|---|
+| `GITHUB_TOKEN` | Criada pelo GitHub para cada execução e expira ao final dela | Publicação e download da imagem, criação da release |
+| `POSTGRES_PASSWORD` | Secret do environment `homologacao`, em **Settings → Environments** | Somente o job `deploy` |
+
+Nenhuma senha fica no repositório. O GitHub oculta os secrets nos logs, e cada job recebe apenas as permissões de que precisa. O secret deve conter só letras e números, porque também entra na URL de conexão. Sem ele, o deploy para com um erro e a release não é criada.
 
 ## Versionamento
 
@@ -241,7 +261,9 @@ git push origin v0.1.0
 - Os testes automatizados rodam em SQLite. No PostgreSQL, o pipeline verifica as migrações e o fluxo do smoke test, mas não toda a suíte.
 - `/health` não verifica o banco, então a API pode aparecer como saudável com o banco fora do ar.
 - A senha do banco fica em variáveis de ambiente dos contêineres, visíveis para quem tem acesso ao Docker da máquina.
-- A imagem publicada é gerada novamente a partir do commit da tag, então não é o mesmo artefato testado no job `docker` do CI.
+- A imagem publicada é gerada novamente a partir do commit da tag, então não é o mesmo artefato testado no job `docker` do CI. Por isso, o job `deploy` repete o smoke test na imagem publicada.
+- O ambiente de homologação é simulado e temporário, então não há um servidor permanente. Os dados de cada deploy são descartados com o runner.
+- O smoke test cria um usuário descartável a cada execução. Em um ambiente permanente, esses usuários se acumulariam.
 
 ## Roteiro DevOps
 
@@ -251,7 +273,7 @@ git push origin v0.1.0
 | A2 | Dockerfile otimizado | Concluída |
 | A2 | Orquestração com Docker Compose | Concluída |
 | A2 | Publicação da imagem no registry | Em andamento |
-| A2 | Deploy automático simulado | Pendente |
+| A2 | Deploy automático simulado | Em andamento |
 | A2 | Gestão de segredos no CI/CD | Em andamento |
 | A2 | Versionamento semântico | Em andamento |
 | A2 | Simulação documentada de rollback | Pendente |

@@ -199,3 +199,43 @@ Durante um incidente, a primeira pergunta é "o que está rodando agora?". A res
 | Qual imagem pertence a esta release? | Referência e digest nas notas da release |
 
 **No projeto:** a variável `APP_VERSION` no [Dockerfile](backend/Dockerfile) e no [config.py](backend/app/core/config.py).
+
+## Deploy e gestão de segredos
+
+### Gerenciador de segredos do CI/CD
+
+A senha fica cifrada no GitHub e só é entregue ao pipeline durante a execução, sem passar pelo código. O GitHub também oculta o valor nos logs. Assim, quem lê o repositório não vê a senha, e trocá-la não exige nenhum commit.
+
+**No projeto:** o secret `POSTGRES_PASSWORD`, usado no job `deploy` do [cd.yml](.github/workflows/cd.yml).
+
+### Segredos por ambiente
+
+Um secret do repositório fica disponível para qualquer workflow. Um secret de *environment* só é liberado para os jobs que declaram aquele ambiente, o que reduz quem pode acessá-lo. Cada ambiente também pode ter a própria senha, e assim um erro em homologação não expõe a de produção. O *environment* ainda registra o histórico de deploys e permite exigir aprovação manual.
+
+Um segredo também deve ser exposto ao menor trecho possível. Por isso, a senha é declarada apenas no passo que faz o deploy, e não no job inteiro.
+
+**No projeto:** a linha `environment: homologacao` e o bloco `env` do passo `Deploy published image` no [cd.yml](.github/workflows/cd.yml).
+
+### Implantar exatamente o que foi publicado
+
+O artefato é gerado uma vez e promovido entre as etapas. Se cada etapa gerasse a própria imagem, o que foi testado poderia ser diferente do que foi implantado. O deploy usa o digest, que identifica o conteúdo exato, e a opção `--no-build` faz o deploy falhar em vez de gerar outra imagem localmente.
+
+**No projeto:** o [scripts/deploy.sh](scripts/deploy.sh) e a referência `imagem:versão@digest` no [cd.yml](.github/workflows/cd.yml).
+
+### Verificação depois do deploy
+
+Um deploy só termina quando se prova que a versão nova funciona. O smoke test verifica se a API responde, se a versão no ar é a esperada e se ela grava no banco. A conferência da versão evita um falso sucesso, em que o teste passa contra a versão antiga, que continuou rodando.
+
+**No projeto:** o segundo argumento do [scripts/smoke-test.sh](scripts/smoke-test.sh).
+
+### Portão antes da release
+
+A ordem dos jobs funciona como uma sequência de portões: `ci`, `publish`, `deploy` e `release`. Se um falhar, os seguintes não rodam, então a release só é criada para uma versão que foi implantada e verificada.
+
+**No projeto:** as declarações `needs` do [cd.yml](.github/workflows/cd.yml).
+
+### Falhar sem derrubar o que está funcionando
+
+Um problema ao obter a versão nova não deve afetar a versão em execução. Como o script baixa a imagem antes de trocar os contêineres, uma imagem inexistente interrompe o deploy com a versão anterior ainda no ar. Em caso de falha, o script também mostra os logs dos serviços, para facilitar o diagnóstico.
+
+**No projeto:** a ordem dos comandos e o `trap` do [scripts/deploy.sh](scripts/deploy.sh).
