@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Verifica se a API está no ar e gravando no banco de verdade.
-# Uso: bash scripts/smoke-test.sh [url-base]
+# Uso: bash scripts/smoke-test.sh [url-base] [versão-esperada]
 # Cria um usuário descartável a cada execução.
 set -euo pipefail
 
 base_url="${1:-http://127.0.0.1:8000}"
+expected_version="${2:-}"
 username="smoke_$(date +%s)_${RANDOM}"
 password="$(openssl rand -hex 16)"
 payload="{\"username\":\"${username}\",\"password\":\"${password}\"}"
@@ -23,5 +24,11 @@ check() {
 }
 
 check "API responde em /health" 200 "$(curl -s -o /dev/null -w '%{http_code}' "${base_url}/health")"
+
+if [ -n "${expected_version}" ]; then
+  current_version="$(curl -s "${base_url}/health" | sed -E 's/.*"version":"([^"]*)".*/\1/')"
+  check "versão no ar" "${expected_version}" "${current_version}"
+fi
+
 check "cadastro grava no banco" 201 "$(post_register)"
 check "cadastro repetido encontra o registro gravado" 409 "$(post_register)"
