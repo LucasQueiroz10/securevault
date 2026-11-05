@@ -7,7 +7,7 @@ x-api: &api
   build: ./backend
   environment:
     # O :? faz o Compose parar com erro se a variável não estiver definida.
-    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?defina no .env}:${POSTGRES_PASSWORD:?defina no .env}@db:5432/${POSTGRES_DB:?defina no .env}
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?defina no .env ou no GitHub Secrets}:${POSTGRES_PASSWORD:?defina no .env ou no GitHub Secrets}@db:5432/${POSTGRES_DB:?defina no .env ou no GitHub Secrets}
   read_only: true
   tmpfs:
     - /tmp
@@ -21,9 +21,9 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?defina no .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
-      POSTGRES_DB: ${POSTGRES_DB:?defina no .env}
+      POSTGRES_USER: ${POSTGRES_USER:?defina no .env ou no GitHub Secrets}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env ou no GitHub Secrets}
+      POSTGRES_DB: ${POSTGRES_DB:?defina no .env ou no GitHub Secrets}
     # Volume nomeado: os dados sobrevivem quando o contêiner é recriado.
     volumes:
       - db-data:/var/lib/postgresql/data
