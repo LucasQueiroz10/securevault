@@ -10,6 +10,13 @@ def test_settings_fail_without_database_url(monkeypatch):
         Settings(_env_file=None)
 
 
+def test_app_version_comes_from_environment(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("APP_VERSION", "1.2.3")
+
+    assert Settings(_env_file=None).app_version == "1.2.3"
+
+
 def test_database_url_is_hidden_when_printed(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://user:not-a-real-password@db/securevault")
 

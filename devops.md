@@ -151,3 +151,51 @@ O smoke test é um teste curto que confirma se o essencial funciona. Ele fica em
 Neste projeto, o script cadastra um usuário e tenta cadastrá-lo de novo. O segundo pedido precisa ser recusado, o que prova que o primeiro foi realmente gravado no banco.
 
 **No projeto:** o [scripts/smoke-test.sh](scripts/smoke-test.sh).
+
+## Entrega contínua
+
+### Versionamento semântico
+
+O número da versão comunica o impacto da mudança: `MAJOR` indica incompatibilidade, `MINOR` indica funcionalidade nova e `PATCH` indica correção. Quem atualiza sabe o risco sem precisar ler todo o código. Enquanto o `MAJOR` for `0`, a API ainda é considerada instável.
+
+**No projeto:** as tags `vX.Y.Z` e a seção de versionamento do [README](README.md).
+
+### Release a partir de uma tag
+
+A publicação acontece por uma ação explícita, e não a cada merge. A tag marca exatamente qual commit virou qual versão e fica no histórico do Git. Como uma tag pode apontar para qualquer commit, o pipeline também confere se o commit está na `main`, assim um trabalho não revisado não vira release.
+
+**No projeto:** o gatilho `on.push.tags` e o passo `Check tag is on main` do [cd.yml](.github/workflows/cd.yml).
+
+### Portão de qualidade reaproveitado
+
+O CD executa o próprio CI antes de publicar, por meio de um workflow reutilizável. Se os dois fossem mantidos separados, poderiam divergir com o tempo, e a release acabaria com verificações diferentes das de um pull request.
+
+**No projeto:** o gatilho `workflow_call` do [ci.yml](.github/workflows/ci.yml) e o job `ci` do [cd.yml](.github/workflows/cd.yml).
+
+### Tags exatas em vez de `latest`
+
+A tag `latest` muda de conteúdo a cada publicação. Com ela, não dá para saber o que está rodando, e voltar para "a versão anterior" não tem um significado preciso. Uma versão exata resolve os dois problemas, e é isso que permite um rollback confiável.
+
+O digest vai além da tag: é o hash do conteúdo da imagem, então identifica aquele artefato mesmo que alguém reutilize o nome da tag.
+
+**No projeto:** o `flavor: latest=false` do [cd.yml](.github/workflows/cd.yml) e o digest registrado em cada release.
+
+### Credenciais temporárias e menor privilégio no pipeline
+
+Uma senha guardada pode vazar e continua válida até alguém trocá-la. O `GITHUB_TOKEN` é criado para cada execução e expira ao final dela, então não há credencial de registry para armazenar.
+
+O pipeline também segue o menor privilégio: por padrão, ele só lê o repositório, e cada job pede apenas o que precisa. Se um passo do job `publish` for comprometido, por exemplo, ele não consegue alterar o código nem criar releases.
+
+**No projeto:** o bloco `permissions` de cada job do [cd.yml](.github/workflows/cd.yml).
+
+### Rastreabilidade
+
+Durante um incidente, a primeira pergunta é "o que está rodando agora?". A resposta deve estar a uma consulta de distância, sem depender de memória ou de anotações.
+
+| Pergunta | Onde responder |
+|---|---|
+| Qual versão está no ar? | Endpoint `/health` |
+| De qual commit veio esta imagem? | Tag `sha-*` e labels da imagem |
+| Qual imagem pertence a esta release? | Referência e digest nas notas da release |
+
+**No projeto:** a variável `APP_VERSION` no [Dockerfile](backend/Dockerfile) e no [config.py](backend/app/core/config.py).

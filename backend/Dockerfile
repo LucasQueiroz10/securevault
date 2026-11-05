@@ -26,6 +26,11 @@ COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations
 
+# Definida pelo pipeline de release. Fica depois das cópias para que trocar de
+# versão não invalide o cache das camadas anteriores.
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
 # UID numérico: o Kubernetes só consegue verificar "não é root" com o número.
 USER 1000:1000
 
