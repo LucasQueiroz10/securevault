@@ -76,9 +76,43 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  release:
+  # Simula um ambiente de homologação no próprio runner: a stack sobe do zero e é
+  # descartada ao final da execução. Em um servidor real, mudaria só onde estes
+  # passos rodam. O "environment" libera os segredos apenas para este job e
+  # registra o histórico de deploys no GitHub.
+  deploy:
     runs-on: ubuntu-latest
     needs: publish
+    environment: homologacao
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # O digest garante que o deploy usa exatamente o artefato publicado acima.
+      - name: Deploy published image
+        env:
+          POSTGRES_USER: securevault
+          POSTGRES_DB: securevault
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          VERSION: ${{ needs.publish.outputs.version }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+        run: bash scripts/deploy.sh "$IMAGE:$VERSION@$DIGEST" "$VERSION"
+
+  # Só vira release o que foi implantado e passou no smoke test.
+  release:
+    runs-on: ubuntu-latest
+    needs: [publish, deploy]
     permissions:
       contents: write
 
