@@ -239,3 +239,37 @@ A ordem dos jobs funciona como uma sequência de portões: `ci`, `publish`, `dep
 Um problema ao obter a versão nova não deve afetar a versão em execução. Como o script baixa a imagem antes de trocar os contêineres, uma imagem inexistente interrompe o deploy com a versão anterior ainda no ar. Em caso de falha, o script também mostra os logs dos serviços, para facilitar o diagnóstico.
 
 **No projeto:** a ordem dos comandos e o `trap` do [scripts/deploy.sh](scripts/deploy.sh).
+
+## Rollback e resposta a falhas
+
+### Rollback como um deploy comum
+
+Voltar de versão não deve ser um procedimento especial, pensado às pressas durante uma crise. Com versões exatas, rollback é o mesmo deploy de sempre apontando para outro número, com as mesmas verificações. Assim, o caminho de volta já é testado a cada release.
+
+**No projeto:** o mesmo [scripts/deploy.sh](scripts/deploy.sh) serve para os dois casos.
+
+### Exercitar a falha
+
+Um plano de recuperação que nunca foi executado é apenas uma hipótese. O exercício provoca a falha de propósito, em um ambiente seguro, para confirmar que a volta funciona e medir quanto tempo leva. Esse tempo se relaciona ao MTTR (*Mean Time To Recovery*), o tempo médio de recuperação, uma das métricas DORA de desempenho em entrega de software.
+
+**No projeto:** o [scripts/rollback-drill.sh](scripts/rollback-drill.sh) e o workflow [Rollback Drill](.github/workflows/rollback-drill.yml).
+
+### Separar código e dados no rollback
+
+Voltar o código é fácil, mas voltar o banco não é, porque desfazer uma migração pode apagar dados. Por isso, as migrações devem ser compatíveis com a versão anterior sempre que possível: primeiro se adiciona, e só em uma release posterior se remove o que ficou sem uso. Esse padrão é chamado de *expand and contract*.
+
+**No projeto:** a seção sobre banco de dados em [docs/rollback.md](docs/rollback.md).
+
+### Registrar falhas sem procurar culpados
+
+Um registro de incidente (*post-mortem*) descreve o que aconteceu, a causa, o impacto e o que mudou depois. O foco fica no processo, e não em quem errou, porque um processo que permite um erro simples vai permiti-lo de novo. Depois do incidente com a tag, por exemplo, o comando passou a usar `origin/main`, o que evita o problema independentemente de quem criar a próxima tag.
+
+**No projeto:** a seção de falhas reais em [docs/rollback.md](docs/rollback.md).
+
+## Fluxo de trabalho no Git
+
+### Branches curtas e `main` protegida
+
+No desenvolvimento baseado em tronco (*trunk-based*), as mudanças ficam pouco tempo em branches e entram com frequência na `main`, que precisa estar sempre pronta para virar release. A proteção garante isso de forma automática: nada entra sem pull request e sem os checks aprovados. Uma regra que só depende de disciplina acaba sendo quebrada em um dia de pressa.
+
+**No projeto:** o ruleset `main`, descrito no [README](README.md).

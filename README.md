@@ -24,10 +24,13 @@ Cofre de senhas full stack (desktop + API), desenvolvido como projeto de aprendi
 
 ```text
 .github/workflows/ci.yml   Pipeline de integração contínua
-.github/workflows/cd.yml   Pipeline de entrega: publica a imagem e cria a release
+.github/workflows/cd.yml   Pipeline de entrega: publica, implanta e cria a release
+.github/workflows/rollback-drill.yml   Exercício de rollback, iniciado à mão
+docs/rollback.md           Procedimento de rollback e evidências da simulação
 docker-compose.yml         Sobe a API, as migrações e o PostgreSQL
 .env.example               Modelo das variáveis do Compose (só valores fictícios)
 scripts/deploy.sh          Implanta uma versão publicada e roda o smoke test
+scripts/rollback-drill.sh  Simula uma versão com defeito e o rollback
 scripts/smoke-test.sh      Verifica a API, a versão no ar e a gravação no banco
 devops.md                  Práticas de DevOps usadas no projeto
 backend/
@@ -78,7 +81,7 @@ Para conferir e administrar a stack:
 Para rodar uma release do registry em vez de gerar a imagem localmente, informe a versão em `API_IMAGE`:
 
 ```powershell
-$env:API_IMAGE = "ghcr.io/lucasqueiroz10/securevault-api:0.1.0"
+$env:API_IMAGE = "ghcr.io/lucasqueiroz10/securevault-api:0.1.1"
 docker compose up -d --no-build --wait
 ```
 
@@ -215,7 +218,7 @@ O deploy roda no próprio runner do GitHub Actions: a stack sobe do zero, é ver
 O mesmo script pode ser usado em qualquer máquina com o Docker e as variáveis `POSTGRES_*` definidas:
 
 ```bash
-bash scripts/deploy.sh ghcr.io/lucasqueiroz10/securevault-api:0.1.0 0.1.0
+bash scripts/deploy.sh ghcr.io/lucasqueiroz10/securevault-api:0.1.1 0.1.1
 ```
 
 ### Credenciais do pipeline
@@ -243,7 +246,7 @@ Cada release publica a imagem `ghcr.io/lucasqueiroz10/securevault-api` com estas
 
 | Tag | Exemplo | Comportamento |
 |---|---|---|
-| Versão completa | `0.1.0` | Usada em deploys e rollbacks. Não deve ser reutilizada |
+| Versão completa | `0.1.1` | Usada em deploys e rollbacks. Não deve ser reutilizada |
 | `MAJOR.MINOR` | `0.1` | Acompanha a correção mais recente dessa linha |
 | Commit | `sha-1a2b3c4` | Liga a imagem ao commit que a originou |
 
@@ -252,9 +255,30 @@ A tag `latest` não é publicada, para que um deploy sempre indique uma versão 
 Para criar uma release a partir da `main` atualizada:
 
 ```powershell
-git tag -a v0.1.0 -m "Descreva a versão"
-git push origin v0.1.0
+git fetch origin
+git tag -a v0.2.0 origin/main -m "Descreva a versão"
+git push origin v0.2.0
 ```
+
+## Rollback
+
+Rollback é um novo deploy de uma versão anterior e exata, com as mesmas verificações de um deploy comum:
+
+```bash
+bash scripts/deploy.sh ghcr.io/lucasqueiroz10/securevault-api:0.1.1 0.1.1
+```
+
+O fluxo pode ser exercitado em **Actions → Rollback Drill**, ou com `bash scripts/rollback-drill.sh 0.1.1`. O exercício implanta a versão estável, grava um dado, tenta implantar uma versão com defeito, volta para a versão estável e confirma que o dado foi preservado.
+
+O procedimento completo, os cuidados com o banco de dados e as evidências estão em [docs/rollback.md](docs/rollback.md).
+
+## Proteção da `main`
+
+A `main` é protegida por um ruleset do GitHub:
+
+- Toda mudança entra por pull request.
+- Os checks `test` e `docker` precisam passar antes do merge.
+- A branch não pode ser apagada nem ter o histórico reescrito.
 
 ## Limitações conhecidas
 
@@ -264,6 +288,8 @@ git push origin v0.1.0
 - A imagem publicada é gerada novamente a partir do commit da tag, então não é o mesmo artefato testado no job `docker` do CI. Por isso, o job `deploy` repete o smoke test na imagem publicada.
 - O ambiente de homologação é simulado e temporário, então não há um servidor permanente. Os dados de cada deploy são descartados com o runner.
 - O smoke test cria um usuário descartável a cada execução. Em um ambiente permanente, esses usuários se acumulariam.
+- O rollback é iniciado por uma pessoa, e a API fica fora do ar durante a troca de versão.
+- Voltar a imagem não desfaz migrações do banco. Veja os cuidados em [docs/rollback.md](docs/rollback.md).
 
 ## Roteiro DevOps
 
@@ -272,9 +298,9 @@ git push origin v0.1.0
 | A1 | Repositório, testes e pipeline de CI | Concluída |
 | A2 | Dockerfile otimizado | Concluída |
 | A2 | Orquestração com Docker Compose | Concluída |
-| A2 | Publicação da imagem no registry | Em andamento |
-| A2 | Deploy automático simulado | Em andamento |
-| A2 | Gestão de segredos no CI/CD | Em andamento |
-| A2 | Versionamento semântico | Em andamento |
-| A2 | Simulação documentada de rollback | Pendente |
+| A2 | Publicação da imagem no registry | Concluída |
+| A2 | Deploy automático simulado | Concluída |
+| A2 | Gestão de segredos no CI/CD | Concluída |
+| A2 | Versionamento semântico | Concluída |
+| A2 | Simulação documentada de rollback | Concluída |
 | A3 | DevSecOps, observabilidade e demonstração | Pendente |
