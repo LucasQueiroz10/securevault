@@ -17,11 +17,13 @@ Cofre de senhas full stack (desktop + API), desenvolvido como projeto de aprendi
 | Orquestração local | Docker Compose | Em uso |
 | Lint do Dockerfile | hadolint | Em uso |
 | CI | GitHub Actions | Em uso |
+| CD | GitHub Actions, com publicação no GitHub Container Registry (GHCR) | Publicação implementada; deploy automático pendente |
 
 ## Estrutura do repositório
 
 ```text
 .github/workflows/ci.yml   Pipeline de integração contínua
+.github/workflows/cd.yml   Pipeline de entrega: publica a imagem e cria a release
 docker-compose.yml         Sobe a API, as migrações e o PostgreSQL
 .env.example               Modelo das variáveis do Compose (só valores fictícios)
 scripts/smoke-test.sh      Verifica se a API está no ar e gravando no banco
@@ -69,6 +71,17 @@ Para conferir e administrar a stack:
 | `docker compose down` | Para a stack e mantém os dados |
 | `docker compose down -v` | Para a stack e **apaga os dados do banco** |
 
+### Com uma versão publicada
+
+Para rodar uma release do registry em vez de gerar a imagem localmente, informe a versão em `API_IMAGE`:
+
+```powershell
+$env:API_IMAGE = "ghcr.io/lucasqueiroz10/securevault-api:0.1.0"
+docker compose up -d --no-build --wait
+```
+
+Trocar a versão preserva os dados do banco. Para voltar a usar a imagem local, rode `Remove-Item Env:API_IMAGE`.
+
 ### Sem Docker
 
 Usa SQLite por padrão, o que basta para desenvolver a API:
@@ -104,6 +117,7 @@ Os arquivos `.env` ficam fora do Git. Nunca coloque credenciais reais nos arquiv
 | `POSTGRES_PASSWORD` | Sim | Senha do banco. Use só letras e números, porque ela também entra na URL de conexão |
 | `POSTGRES_DB` | Sim | Nome do banco |
 | `API_IMAGE` | Não | Imagem da API a executar. O padrão é `securevault-api:local` |
+| `APP_VERSION` | Não | Versão informada em `/health`. É gravada na imagem durante a release, e o padrão é `dev` |
 
 Sem as variáveis obrigatórias, o Compose para com um erro antes de iniciar qualquer serviço. A senha do banco só é definida quando o volume é criado pela primeira vez: para trocá-la depois, é preciso alterá-la dentro do PostgreSQL ou recriar o volume, o que apaga os dados.
 
@@ -119,7 +133,7 @@ Sem essa variável, a aplicação não inicia. Para PostgreSQL, a URL precisa in
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET` | `/health` | Informa se o processo da API está respondendo. Não verifica o banco |
+| `GET` | `/health` | Informa se o processo da API está respondendo e qual versão está rodando. Não verifica o banco |
 | `POST` | `/auth/register` | Cadastra um usuário |
 
 ## Banco de dados
@@ -183,11 +197,51 @@ O pipeline roda a cada push e pull request para a `main`:
    4. Executa o `scripts/smoke-test.sh`.
    5. Em caso de falha, mostra os logs dos serviços.
 
+## Pipeline de CD
+
+O pipeline roda ao enviar uma tag no formato `vX.Y.Z`:
+
+1. **`ci`:** executa o mesmo pipeline de CI dos pull requests.
+2. **`publish`:** confere se o commit da tag está na `main`, gera a imagem e a publica no GHCR.
+3. **`release`:** cria a release no GitHub, com a referência e o digest da imagem.
+
+A autenticação no registry usa o `GITHUB_TOKEN`, uma credencial temporária criada pelo GitHub para cada execução. Não há senha de registry armazenada no repositório, e cada job recebe apenas as permissões de que precisa.
+
+## Versionamento
+
+As versões seguem o [versionamento semântico](https://semver.org/lang/pt-BR/), no formato `MAJOR.MINOR.PATCH`:
+
+| Parte | Quando aumenta | Exemplo |
+|---|---|---|
+| `MAJOR` | Mudança incompatível na API | `1.4.2` → `2.0.0` |
+| `MINOR` | Funcionalidade nova, compatível com a versão anterior | `1.4.2` → `1.5.0` |
+| `PATCH` | Correção compatível com a versão anterior | `1.4.2` → `1.4.3` |
+
+Enquanto o `MAJOR` for `0`, a API ainda é considerada instável e pode mudar entre versões `MINOR`.
+
+Cada release publica a imagem `ghcr.io/lucasqueiroz10/securevault-api` com estas tags:
+
+| Tag | Exemplo | Comportamento |
+|---|---|---|
+| Versão completa | `0.1.0` | Usada em deploys e rollbacks. Não deve ser reutilizada |
+| `MAJOR.MINOR` | `0.1` | Acompanha a correção mais recente dessa linha |
+| Commit | `sha-1a2b3c4` | Liga a imagem ao commit que a originou |
+
+A tag `latest` não é publicada, para que um deploy sempre indique uma versão exata.
+
+Para criar uma release a partir da `main` atualizada:
+
+```powershell
+git tag -a v0.1.0 -m "Descreva a versão"
+git push origin v0.1.0
+```
+
 ## Limitações conhecidas
 
 - Os testes automatizados rodam em SQLite. No PostgreSQL, o pipeline verifica as migrações e o fluxo do smoke test, mas não toda a suíte.
 - `/health` não verifica o banco, então a API pode aparecer como saudável com o banco fora do ar.
 - A senha do banco fica em variáveis de ambiente dos contêineres, visíveis para quem tem acesso ao Docker da máquina.
+- A imagem publicada é gerada novamente a partir do commit da tag, então não é o mesmo artefato testado no job `docker` do CI.
 
 ## Roteiro DevOps
 
@@ -196,7 +250,9 @@ O pipeline roda a cada push e pull request para a `main`:
 | A1 | Repositório, testes e pipeline de CI | Concluída |
 | A2 | Dockerfile otimizado | Concluída |
 | A2 | Orquestração com Docker Compose | Concluída |
-| A2 | Pipeline de CD e deploy simulado | Pendente |
+| A2 | Publicação da imagem no registry | Em andamento |
+| A2 | Deploy automático simulado | Pendente |
 | A2 | Gestão de segredos no CI/CD | Em andamento |
-| A2 | Versionamento semântico e rollback | Pendente |
+| A2 | Versionamento semântico | Em andamento |
+| A2 | Simulação documentada de rollback | Pendente |
 | A3 | DevSecOps, observabilidade e demonstração | Pendente |
