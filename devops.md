@@ -84,7 +84,7 @@ A versão do hadolint, a ferramenta de lint, é fixada para que o resultado do p
 
 ### Infraestrutura como código
 
-Toda a infraestrutura necessária para rodar o projeto fica descrita em arquivos versionados, e não em passos manuais. Qualquer pessoa do grupo sobe o mesmo ambiente com um único comando, e cada mudança na infraestrutura passa por revisão e fica no histórico do Git.
+Toda a infraestrutura necessária para rodar o projeto fica descrita em arquivos versionados, e não em passos manuais. Qualquer pessoa sobe o mesmo ambiente com um único comando, e cada mudança na infraestrutura passa por revisão e fica no histórico do Git.
 
 **No projeto:** o [docker-compose.yml](docker-compose.yml) define a API, as migrações e o PostgreSQL.
 
@@ -273,3 +273,23 @@ Um registro de incidente (*post-mortem*) descreve o que aconteceu, a causa, o im
 No desenvolvimento baseado em tronco (*trunk-based*), as mudanças ficam pouco tempo em branches e entram com frequência na `main`, que precisa estar sempre pronta para virar release. A proteção garante isso de forma automática: nada entra sem pull request e sem os checks aprovados. Uma regra que só depende de disciplina acaba sendo quebrada em um dia de pressa.
 
 **No projeto:** o ruleset `main`, descrito no [README](README.md).
+
+## Interface na esteira de entrega
+
+### Interface como cliente da API
+
+Quando a interface só consome uma API, ela pode ser trocada sem mexer nas regras de negócio. É isso que permite começar com uma página web e migrar depois para o desktop: o cliente muda, e os endpoints, os testes da API e o banco continuam os mesmos. Para a operação, a página também não é um sistema à parte, porque vai na mesma imagem e passa pelo mesmo pipeline.
+
+**No projeto:** o [app.js](backend/app/static/app.js) usa apenas `/health` e `/auth/register`.
+
+### Verificação compatível com o rollback
+
+O smoke test roda depois de qualquer deploy, inclusive quando se volta para uma versão antiga. Se ele exigisse algo que só existe na versão nova, como a interface web, todo rollback para antes dela falharia na hora em que mais importa. Por isso, o smoke test verifica só o contrato comum entre as versões, e a checagem da interface fica no CI da versão atual.
+
+**No projeto:** o [scripts/smoke-test.sh](scripts/smoke-test.sh) e o passo `Check web interface` do [ci.yml](.github/workflows/ci.yml).
+
+### Política de segurança de conteúdo
+
+A *Content-Security-Policy* (CSP) diz ao navegador de onde a página pode carregar recursos. Com `default-src 'self'`, um script injetado de outro site não é executado, o que importa em uma tela que recebe senhas. Isso exige manter o JavaScript e o CSS em arquivos próprios, e é uma das razões para a página não usar scripts de terceiros.
+
+**No projeto:** a constante `WEB_HEADERS` em [main.py](backend/app/main.py).
