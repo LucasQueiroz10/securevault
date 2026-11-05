@@ -69,6 +69,14 @@ jobs:
       - name: Smoke test
         run: bash scripts/smoke-test.sh
 
+      # Fora do smoke test de propósito: o deploy o reutiliza, e um rollback para
+      # uma versão anterior à interface falharia nesta verificação.
+      - name: Check web interface
+        run: |
+          curl -fsS http://127.0.0.1:8000/ | grep 'id="register-form"' > /dev/null
+          curl -fsS -o /dev/null http://127.0.0.1:8000/static/app.js
+          curl -fsS -o /dev/null http://127.0.0.1:8000/static/style.css
+
       - name: Show logs on failure
         if: failure()
         run: docker compose logs
