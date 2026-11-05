@@ -1,12 +1,23 @@
 # SecureVault
 
-Cofre de senhas full stack (desktop + API), desenvolvido como projeto de aprendizado prático de desenvolvimento de software e DevOps.
+Cofre de senhas com API e interface web, desenvolvido como projeto de aprendizado prático de desenvolvimento de software e DevOps. Está prevista uma interface desktop para substituir a web.
+
+## Projeto individual
+
+Este projeto é desenvolvido por uma única pessoa, Lucas Queiroz Costa, com o conhecimento do professor da disciplina. As três funções sugeridas para os grupos ficam com o autor:
+
+| Função | Responsabilidades no projeto |
+|---|---|
+| Desenvolvimento | API, interface web, banco de dados e migrações |
+| Qualidade | Testes automatizados, smoke test e exercício de rollback |
+| Operações/Infraestrutura | Docker, Docker Compose, pipelines de CI/CD, segredos e versões |
 
 ## Stack
 
 | Camada | Tecnologia | Situação |
 |---|---|---|
-| Desktop | Python + PySide6 | Planejado |
+| Interface web | HTML, CSS e JavaScript, sem framework, servidos pela API | Em uso, com o cadastro de usuários |
+| Interface desktop | Python + PySide6 | Planejada, para substituir a interface web |
 | Backend | Python 3.12 + FastAPI + Uvicorn | Em desenvolvimento |
 | Banco de dados | PostgreSQL 17 | Em uso no Docker Compose; o desenvolvimento sem Docker pode usar SQLite |
 | Acesso ao banco | SQLAlchemy + psycopg | Em uso |
@@ -35,6 +46,7 @@ scripts/smoke-test.sh      Verifica a API, a versão no ar e a gravação no ban
 devops.md                  Práticas de DevOps usadas no projeto
 backend/
   app/                     Código da API (rotas, serviços, repositórios, modelos)
+  app/static/              Interface web (HTML, CSS e JavaScript)
   migrations/              Histórico de alterações do banco (Alembic)
   tests/                   Testes automatizados
   Dockerfile               Receita da imagem da API
@@ -140,6 +152,20 @@ Sem essa variável, a aplicação não inicia. Para PostgreSQL, a URL precisa in
 |---|---|---|
 | `GET` | `/health` | Informa se o processo da API está respondendo e qual versão está rodando. Não verifica o banco |
 | `POST` | `/auth/register` | Cadastra um usuário |
+| `GET` | `/docs` | Documentação interativa da API (Swagger UI) |
+
+## Interface web
+
+A página em <http://127.0.0.1:8000/> permite criar uma conta e mostra se a API está no ar e qual versão está rodando. Ela é a interface atual do projeto, e o login e o cofre ainda não estão disponíveis.
+
+| Decisão | Motivo |
+|---|---|
+| A página só usa as rotas públicas da API | Não há regra de negócio na interface, então a futura interface desktop poderá usar os mesmos endpoints |
+| Servida pela própria API, na mesma imagem | Passa pelos mesmos testes, deploy e rollback, sem um serviço a mais para operar |
+| Sem framework e sem dependências novas | Uma tela de cadastro não justifica um processo de build separado |
+| Sem scripts de terceiros, com `Content-Security-Policy` | A página só carrega arquivos da própria API, o que reduz o risco em uma tela que recebe senhas |
+
+O Swagger em `/docs` carrega seus arquivos de uma CDN, então essa regra de segurança vale apenas para a página principal.
 
 ## Banco de dados
 
@@ -200,7 +226,8 @@ O pipeline roda a cada push e pull request para a `main`:
    2. Gera a imagem e sobe a stack com o PostgreSQL, usando o `.env.example`.
    3. Confere se as migrações correspondem aos modelos (`alembic check`).
    4. Executa o `scripts/smoke-test.sh`.
-   5. Em caso de falha, mostra os logs dos serviços.
+   5. Confere se a interface web e seus arquivos são servidos pela imagem.
+   6. Em caso de falha, mostra os logs dos serviços.
 
 ## Pipeline de CD
 
@@ -289,6 +316,9 @@ A `main` é protegida por um ruleset do GitHub:
 - O ambiente de homologação é simulado e temporário, então não há um servidor permanente. Os dados de cada deploy são descartados com o runner.
 - O smoke test cria um usuário descartável a cada execução. Em um ambiente permanente, esses usuários se acumulariam.
 - O rollback é iniciado por uma pessoa, e a API fica fora do ar durante a troca de versão.
+- A interface web só faz o cadastro. Ainda não há login, nem como guardar credenciais.
+- A API não usa HTTPS, por isso fica publicada apenas em `127.0.0.1`. Um ambiente público precisaria de HTTPS antes de receber senhas.
+- O cadastro não tem limite de tentativas, o que seria necessário em um ambiente público.
 - Voltar a imagem não desfaz migrações do banco. Veja os cuidados em [docs/rollback.md](docs/rollback.md).
 
 ## Roteiro DevOps
@@ -303,4 +333,5 @@ A `main` é protegida por um ruleset do GitHub:
 | A2 | Gestão de segredos no CI/CD | Concluída |
 | A2 | Versionamento semântico | Concluída |
 | A2 | Simulação documentada de rollback | Concluída |
+| Geral | Interface para interação (web, com previsão de troca por desktop) | Em uso |
 | A3 | DevSecOps, observabilidade e demonstração | Pendente |

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecureVault</title>
+  <meta name="description" content="Crie sua conta no SecureVault, um cofre de senhas em desenvolvimento.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <span class="wordmark">SecureVault</span>
+    <p id="api-status" class="status" data-state="checking" role="status">Verificando a API…</p>
+  </header>
+
+  <main class="layout">
+    <section class="intro">
+      <h1>Crie sua conta</h1>
+      <p>O SecureVault é um cofre de senhas em desenvolvimento.</p>
+      <p>Por enquanto, só é possível criar uma conta. O login e o cofre chegam em versões futuras.</p>
+      <a href="/docs">Ver a documentação da API</a>
+    </section>
+
+    <form id="register-form" class="form" novalidate>
+      <noscript><p class="message" data-kind="error">Esta página precisa de JavaScript para criar uma conta.</p></noscript>
+
+      <div id="form-message" class="message" role="alert" tabindex="-1" hidden></div>
+
+      <div class="field">
+        <label for="username">Nome de usuário</label>
+        <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="username-hint username-error">
+        <p id="username-hint" class="hint">De 3 a 50 caracteres.</p>
+        <p id="username-error" class="error" hidden></p>
+      </div>
+
+      <div class="field">
+        <label for="password">Senha</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required aria-describedby="password-hint password-error">
+        <p id="password-hint" class="hint">Pelo menos 8 caracteres.</p>
+        <p id="password-error" class="error" hidden></p>
+      </div>
+
+      <div class="field">
+        <label for="confirmation">Confirme a senha</label>
+        <input id="confirmation" name="confirmation" type="password" autocomplete="new-password" required aria-describedby="confirmation-error">
+        <p id="confirmation-error" class="error" hidden></p>
+      </div>
+
+      <button id="submit" type="submit">Criar conta</button>
+    </form>
+  </main>
+</body>
+</html>
