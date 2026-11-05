@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     # o valor em print/logs, porque a URL do PostgreSQL vai conter a senha.
     database_url: SecretStr
 
+    # Gravada na imagem durante a release. "dev" indica um build local.
+    app_version: str = "dev"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         # utf-8-sig aceita o arquivo com ou sem BOM (o Out-File -Encoding utf8
