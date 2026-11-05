@@ -3,8 +3,13 @@ name: CI
 on:
   push:
     branches: [main]
+  # Permite que o CD reutilize este pipeline antes de publicar uma versão.
+  workflow_call:
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -21,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -43,7 +48,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Versão fixada: a v2.12.0 ainda não reconhece a flag --start-interval do HEALTHCHECK.
       - name: Lint Dockerfile
